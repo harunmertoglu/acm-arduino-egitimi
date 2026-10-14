@@ -1,0 +1,169 @@
+/*
+Adı belirtilmeyen şarkı — yazılı notasyon, iki versiyon
+ARDUINO UNO — 5 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D4, - uç GND
+  Buzzer 2: + uç D5, - uç GND
+  Buzzer 3: + uç D6, - uç GND
+  Buzzer 4: + uç D7, - uç GND
+  Buzzer 5: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+  VERSIYON = 1 veya 2 seçilebilir; her alt çizgi bir sekizlik uzatma sayılır.
+*/
+
+#include <avr/pgmspace.h>
+#include <string.h>
+
+// Arduino Uno — beş pasif buzzer
+// (+) uçlar: D4, D5, D6, D7, D8
+// (-) uçlar: GND
+
+const byte PINLER[] = {4, 5, 6, 7, 8};
+const byte BUZZER_SAYISI = 5;
+
+const byte VERSIYON = 2;  // 1 veya 2 seç
+const unsigned int BPM = 120;
+
+// Notasyon metinleri
+const char versiyon1[] PROGMEM =
+  "sol sib sol sib do_ si do re_ re_ re____ "
+  "sol sib sol sib mib_ re do re_ re_ re____ "
+  "mib mib mib re re do do____ "
+  "do re re do do sib sib____ "
+  "sib sib sib lab lab_ lab_ sol___ "
+  "re_____ mib___ re_ do_ re______ "
+  "re_____ do__ si_ lab sol_____";
+
+const char versiyon2[] PROGMEM =
+  "la do la do re_ do re mi_ mi_ mi____ "
+  "la do la do fa_ mi re mi_ mi_ mi____ "
+  "fa fa fa mi mi re re____ "
+  "re mi mi re re do do____ "
+  "do do do sib sib_ sib_ la____ "
+  "mi_____ fa___ mi_ re_ mi_____ "
+  "mi_____ re___ do_ sib_ la_____";
+
+unsigned int frekansBul(const char* nota) {
+  if (strcmp(nota, "sol") == 0) return 392; // Sol4
+  if (strcmp(nota, "lab") == 0) return 415; // La bemol4
+  if (strcmp(nota, "la")  == 0) return 440; // La4
+  if (strcmp(nota, "sib") == 0) return 466; // Si bemol4
+  if (strcmp(nota, "si")  == 0) return 494; // Si4
+  if (strcmp(nota, "do")  == 0) return 523; // Do5
+  if (strcmp(nota, "re")  == 0) return 587; // Re5
+  if (strcmp(nota, "mib") == 0) return 622; // Mi bemol5
+  if (strcmp(nota, "mi")  == 0) return 659; // Mi5
+  if (strcmp(nota, "fa")  == 0) return 698; // Fa5
+
+  return 0;
+}
+
+void cikislariAyarla(byte seviye) {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    digitalWrite(PINLER[i], seviye);
+  }
+}
+
+void notaCal(unsigned int frekans,
+             unsigned long sureMs) {
+  if (frekans == 0) {
+    cikislariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+
+  const unsigned long yarimPeriyotUs =
+      500000UL / frekans;
+
+  const unsigned long boslukMs = 20;
+  const unsigned long sesSuresi = sureMs - boslukMs;
+  const unsigned long baslangic = millis();
+
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+
+    cikislariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+
+    kenar = micros();
+
+    cikislariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+
+  cikislariAyarla(LOW);
+  delay(boslukMs);
+}
+
+void sarkiyiCal(const char* metin) {
+  const unsigned long sekizlikMs = 60000UL / BPM / 2;
+
+  while (true) {
+    char karakter = pgm_read_byte(metin);
+
+    // Boşlukları atla
+    while (karakter == ' ') {
+      metin++;
+      karakter = pgm_read_byte(metin);
+    }
+
+    if (karakter == '\0') {
+      break;
+    }
+
+    char notaAdi[8];
+    byte harfSayisi = 0;
+    byte sureBirimi = 1;
+
+    // Bir nota ve uzatma işaretlerini oku
+    while (karakter != ' ' && karakter != '\0') {
+      if (karakter == '_') {
+        sureBirimi++;
+      } else if (harfSayisi < sizeof(notaAdi) - 1) {
+        notaAdi[harfSayisi++] = karakter;
+      }
+
+      metin++;
+      karakter = pgm_read_byte(metin);
+    }
+
+    notaAdi[harfSayisi] = '\0';
+
+    notaCal(
+      frekansBul(notaAdi),
+      sekizlikMs * sureBirimi
+    );
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    pinMode(PINLER[i], OUTPUT);
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void loop() {
+  if (VERSIYON == 1) {
+    sarkiyiCal(versiyon1);
+  } else {
+    sarkiyiCal(versiyon2);
+  }
+
+  delay(3000);
+}

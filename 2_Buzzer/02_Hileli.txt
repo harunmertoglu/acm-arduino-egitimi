@@ -1,0 +1,320 @@
+/*
+Hileli — Manifest x Ajda Pekkan
+ARDUINO UNO — 2 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Buzzer 2: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+const byte buzzerPinleri[] = {7, 8};
+const byte buzzerSayisi = 2;
+
+const unsigned int BPM = 120;
+
+// Nota frekansları
+enum : unsigned int {
+  SUS = 0,
+  RE4 = 294,
+  MI4 = 330,
+  FA4 = 349,
+  SOL4 = 392,
+  LA4 = 440,
+  SI4 = 494,
+  DO5 = 523,
+  RE5 = 587,
+  MI5 = 659,
+  FA5 = 698,
+  SOL5 = 784
+};
+
+struct Nota {
+  unsigned int frekans;
+  byte sure;
+};
+
+// Süreler:
+// 1 = onaltılık
+// 2 = sekizlik
+// 3 = noktalı sekizlik
+// 4 = dörtlük
+// 8 = ikilik
+//
+// Her satır bir ölçü.
+// Kullanılmayan elemanlar otomatik olarak {0,0} olur.
+
+const Nota olculer[][16] = {
+  // 1
+  {
+    {SUS,3}, {MI4,1}, {RE4,2}, {MI4,2},
+    {FA4,2}, {MI4,2}, {RE4,2}, {MI4,2}
+  },
+
+  // 2
+  {
+    {SUS,3}, {MI4,1}, {RE4,2}, {MI4,2},
+    {FA4,2}, {MI4,2}, {RE4,2}, {MI4,2}
+  },
+
+  // 3
+  {
+    {SUS,2}, {SOL4,2}, {LA4,1}, {LA4,1},
+    {LA4,2}, {SI4,2}, {LA4,2}, {SOL4,2}, {LA4,2}
+  },
+
+  // 4 — birinci bitiş
+  {
+    {SUS,3}, {LA4,1}, {LA4,2}, {LA4,2},
+    {SOL4,4}, {FA4,4}
+  },
+
+  // 5 — ikinci bitiş
+  {
+    {SUS,8}, {SUS,2}, {SI4,1}, {LA4,1},
+    {SI4,2}, {LA4,2}
+  },
+
+  // 6 — Kal-sın / Sa-na da-ha çok
+  {
+    {SI4,2}, {SI4,4}, {SUS,2}, {SUS,2},
+    {SI4,1}, {LA4,1}, {SI4,1}, {SI4,1}, {LA4,2}
+  },
+
+  // 7 — La-zım / Gez-me baş-ka
+  {
+    {SI4,2}, {SI4,4}, {SUS,1}, {SUS,1},
+    {DO5,3}, {SI4,1}, {DO5,2}, {SI4,2}
+  },
+
+  // 8 — Ten-de / E-ri-dim
+  {
+    {DO5,2}, {DO5,4}, {SUS,2}, {SUS,4},
+    {DO5,1}, {DO5,1}, {DO5,2}
+  },
+
+  // 9 — Yan-dım aş-kın-dan
+  {
+    {DO5,3}, {LA4,3}, {LA4,2}, {RE5,4}, {DO5,4}
+  },
+
+  // 10 — Der-dim ba-ha-ne / Yap-san bi-ham-le
+  {
+    {SI4,1}, {RE5,2}, {RE5,1}, {DO5,2}, {SI4,2},
+    {SI4,1}, {RE5,2}, {RE5,1}, {DO5,2}, {SI4,2}
+  },
+
+  // 11 — Tek-sen sin-ça-re / Tut be
+  {
+    {SI4,1}, {RE5,2}, {RE5,1}, {DO5,2}, {SI4,2},
+    {SUS,4}, {LA4,2}, {SI4,2}
+  },
+
+  // 12 — Ni-dü-şü-yo-rum / Sa-kin
+  {
+    {DO5,2}, {RE5,2}, {DO5,2}, {SI4,2},
+    {DO5,4}, {LA4,2}, {SI4,2}
+  },
+
+  // 13 — Ka-la-mı-yo-rum / Sen
+  {
+    {DO5,2}, {RE5,2}, {SOL5,2}, {FA5,2},
+    {FA5,4}, {RE5,4}
+  },
+
+  // 14 — Den / Ka-ça-ma-dım / İ
+  {
+    {MI5,4}, {RE5,2}, {MI5,2}, {FA5,2},
+    {MI5,2}, {SUS,2}, {SI4,2}
+  },
+
+  // 15 — Yi-ki bi-rak-ma-dın pe-şi
+  {
+    {RE5,2}, {MI5,2}, {RE5,2}, {MI5,2},
+    {FA5,2}, {MI5,2}, {RE5,2}, {RE5,2}
+  },
+
+  // 16 — Mi / Sa-ba-ha ka-dar
+  {
+    {RE5,2}, {DO5,2}, {RE5,2}, {MI5,2},
+    {FA5,2}, {MI5,2}, {MI5,4}
+  },
+
+  // 17 — Oy-na at-zar-la-rı hi-le
+  {
+    {RE5,2}, {MI5,2}, {RE5,2}, {MI5,2},
+    {FA5,2}, {MI5,2}, {RE5,2}, {MI5,2}
+  },
+
+  // 18 — birinci bitiş
+  {
+    {MI5,4}, {RE5,2}, {MI5,2}, {FA5,2},
+    {MI5,2}, {SUS,2}, {SI4,2}
+  },
+
+  // 19 — ikinci bitiş
+  {
+    {MI5,4}, {RE4,2}, {MI4,2}, {FA4,2},
+    {MI4,2}, {RE4,2}, {MI4,2}
+  },
+
+  // 20
+  {
+    {SUS,3}, {MI4,1}, {RE4,2}, {MI4,2},
+    {FA4,2}, {MI4,2}, {RE4,2}, {MI4,2}
+  },
+
+  // 21
+  {
+    {SUS,2}, {SOL4,2}, {LA4,1}, {LA4,1},
+    {LA4,2}, {SI4,2}, {LA4,2}, {SOL4,2}, {LA4,2}
+  },
+
+  // 22
+  {
+    {SUS,3}, {LA4,1}, {LA4,2}, {LA4,2},
+    {SOL4,4}, {FA4,4}
+  },
+
+  // 23 — Gu-ru-ru-na kay-bet-tin
+  {
+    {SUS,2}, {MI5,1}, {MI5,1}, {MI5,1}, {MI5,1},
+    {FA5,2}, {SOL5,2}, {FA5,2}, {MI5,2}, {RE5,2}
+  },
+
+  // 24 — Te-mi-yor-dun söz-de
+  {
+    {RE5,1}, {RE5,1}, {SI4,2}, {RE5,2},
+    {MI5,2}, {MI5,2}, {RE5,4}, {SUS,2}
+  },
+
+  // 25 — Bir a-dım sa-na yak-laş-tık-ça
+  {
+    {SUS,2}, {MI5,1}, {MI5,1}, {MI5,2},
+    {MI5,1}, {FA5,1}, {SOL5,2}, {FA5,2},
+    {MI5,2}, {RE5,2}
+  },
+
+  // 26 — Koş-tun el-le-ri-me / Çı-ka-rı-yo
+  {
+    {RE5,2}, {SI4,2}, {RE5,2}, {RE5,1}, {MI5,1},
+    {MI5,2}, {RE5,2}, {RE5,1}, {RE5,1},
+    {DO5,1}, {DO5,1}
+  },
+
+  // 27 — Rum / Çi-le-den sak-la-ma hiç / Net
+  {
+    {SI4,2}, {SI4,1}, {LA4,1}, {SI4,2}, {SI4,2},
+    {SI4,1}, {LA4,1}, {SI4,2}, {SUS,3}, {LA4,1}
+  },
+
+  // 28 — Ol / Bı-rak o tat-lı di-lin / Se-ni kur
+  {
+    {SI4,2}, {SI4,1}, {LA4,1}, {SI4,2}, {SI4,2},
+    {SI4,1}, {LA4,1}, {SI4,2},
+    {LA4,1}, {LA4,1}, {LA4,2}
+  },
+
+  // 29 — Ta-ra-maz kal-bim-den / Şük-ret
+  {
+    {DO5,1}, {DO5,1}, {RE5,2}, {DO5,2}, {SI4,2},
+    {SI4,2}, {LA4,2}, {LA4,2}, {SI4,2}
+  },
+
+  // 30 — Çı-kar-dım dip-ten / Te-pe
+  {
+    {DO5,1}, {RE5,3}, {DO5,2}, {SI4,2},
+    {DO5,4}, {SI4,2}, {MI4,1}, {MI4,1}
+  },
+
+  // 31 — Tak-lak / E-de-bi-lir an-sı-zın gi-di
+  {
+    {SI4,2}, {SI4,2}, {SUS,2}, {MI4,1}, {MI4,1},
+    {SI4,1}, {SI4,1}, {SI4,2},
+    {SI4,1}, {SI4,1}, {SI4,1}, {LA4,1}
+  }
+};
+
+void tumBuzzerlariAyarla(byte seviye) {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    digitalWrite(buzzerPinleri[i], seviye);
+  }
+}
+
+void ikiBuzzerCal(int frekans, unsigned long sureMs) {
+  if (frekans == 0) {
+    tumBuzzerlariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+  const unsigned long yarimPeriyotUs = 500000UL / frekans;
+  const unsigned long sesSuresi = sureMs * 9 / 10;
+  const unsigned long baslangic = millis();
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+    tumBuzzerlariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+    kenar = micros();
+    tumBuzzerlariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+  tumBuzzerlariAyarla(LOW);
+  delay(sureMs - sesSuresi);
+}
+
+// Ölçü numaraları 1'den başlar, son ölçü dahil çalınır.
+void olculeriCal(byte ilk, byte son) {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  for (byte olcu = ilk; olcu <= son; olcu++) {
+    for (byte i = 0; i < 16; i++) {
+      const Nota &nota = olculer[olcu - 1][i];
+
+      if (nota.sure == 0) {
+        break;
+      }
+
+      ikiBuzzerCal(nota.frekans, birimMs * nota.sure);
+    }
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    pinMode(buzzerPinleri[i], OUTPUT);
+    digitalWrite(buzzerPinleri[i], LOW);
+  }
+}
+
+void loop() {
+  // İlk bölüm ve birinci bitiş
+  olculeriCal(1, 4);
+
+  // Tekrar; birinci bitişi atla
+  olculeriCal(1, 3);
+
+  // İkinci bitişten nakaratın birinci bitişine
+  olculeriCal(5, 18);
+
+  // Nakaratı tekrar çal; birinci bitişi atla
+  olculeriCal(15, 17);
+
+  // İkinci bitiş ve kalan bölüm
+  olculeriCal(19, 31);
+
+  delay(3000);
+}

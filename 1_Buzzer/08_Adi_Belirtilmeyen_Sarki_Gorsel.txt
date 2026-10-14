@@ -1,0 +1,164 @@
+/*
+Adı belirtilmeyen şarkı — numaralı nota görseli
+ARDUINO UNO — 1 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+const byte PINLER[] = {7};
+const byte BUZZER_SAYISI = 1;
+
+const unsigned int BPM = 110;
+
+enum : unsigned int {
+  SUS  = 0,
+  DO4  = 262,
+  RE4  = 294,
+  MI4  = 330,
+  FA4  = 349,
+  SOL4 = 392,
+  SOLS4 = 415,  // Sol diyez
+  LA4  = 440,
+  SI4  = 494,
+  DOS5 = 554    // Do diyez
+};
+
+struct Nota {
+  unsigned int frekans;
+  byte sure;
+};
+
+// Süre birimi: onaltılık
+// 1 = onaltılık
+// 2 = sekizlik
+// 3 = noktalı sekizlik
+// 4 = dörtlük
+// 6 = noktalı dörtlük
+// 8 = ikilik
+
+const Nota giris[] = {
+  {MI4,1}, {LA4,2}
+};
+
+const Nota anaBolum[] = {
+  // La La La Mi Mi Do# Si Do# Do# Si La La Sol
+  {LA4,1}, {LA4,1}, {LA4,1},
+  {MI4,1}, {MI4,1},
+  {DOS5,1}, {SI4,1}, {DOS5,2},
+  {DOS5,1}, {SI4,1},
+  {LA4,3}, {LA4,1}, {SOL4,1},
+
+  // Sol Sol Sol Re Si La Sol / Sol Fa
+  {SOL4,1}, {SOL4,1}, {SOL4,1},
+  {RE4,2}, {SI4,1}, {LA4,1},
+  {SOL4,6}, {SUS,1},
+  {SOL4,1}, {FA4,1},
+
+  // Fa Fa Fa Do Do La Sol# La La Sol# Fa La Sol
+  {FA4,1}, {FA4,1}, {FA4,1},
+  {DO4,1}, {DO4,1}, {LA4,1},
+  {SOLS4,2}, {LA4,2},
+  {LA4,1}, {SOLS4,1},
+  {FA4,2}, {LA4,1}, {SOL4,1}
+};
+
+const Nota birinciBitis[] = {
+  // Sol# Sol# Sol# Sol# Sol# Fa Mi / Mi La
+  {SOLS4,2}, {SOLS4,1}, {SOLS4,1},
+  {SOLS4,2}, {SOLS4,2},
+  {FA4,1}, {MI4,3}, {SUS,1},
+  {MI4,1}, {LA4,2}
+};
+
+const Nota ikinciBitis[] = {
+  // Sol# Sol# Sol# Sol# Sol# Fa Mi
+  {SOLS4,1}, {SOLS4,1}, {SOLS4,1},
+  {SOLS4,2}, {SOLS4,1},
+  {FA4,1}, {MI4,8}, {SUS,1}
+};
+
+void cikislariAyarla(byte seviye) {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    digitalWrite(PINLER[i], seviye);
+  }
+}
+
+void notaCal(unsigned int frekans,
+             unsigned long sureMs) {
+  if (frekans == SUS) {
+    cikislariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+
+  const unsigned long yarimPeriyotUs =
+      500000UL / frekans;
+
+  const unsigned long boslukMs = 15;
+  const unsigned long sesSuresi = sureMs - boslukMs;
+  const unsigned long baslangic = millis();
+
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+
+    cikislariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+
+    kenar = micros();
+
+    cikislariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+
+  cikislariAyarla(LOW);
+  delay(boslukMs);
+}
+
+template <size_t N>
+void melodiCal(const Nota (&melodi)[N]) {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  for (size_t i = 0; i < N; i++) {
+    notaCal(
+      melodi[i].frekans,
+      birimMs * melodi[i].sure
+    );
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    pinMode(PINLER[i], OUTPUT);
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void loop() {
+  melodiCal(giris);
+
+  // İlk çalma: birinci bitiş
+  melodiCal(anaBolum);
+  melodiCal(birinciBitis);
+
+  // Tekrar: ikinci bitiş
+  melodiCal(anaBolum);
+  melodiCal(ikinciBitis);
+
+  delay(3000);
+}

@@ -1,0 +1,296 @@
+/*
+Arıyo — Manifest
+ARDUINO UNO — 2 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Buzzer 2: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+#include <avr/pgmspace.h>
+#include <string.h>
+
+const byte PINLER[] = {7, 8};
+const byte BUZZER_SAYISI = 2;
+const unsigned int BPM = 120;
+
+enum : uint16_t {
+  SUS  = 0,
+  SI4  = 494,
+  DO5  = 523,
+  RE5  = 587,
+  MI5  = 659,
+  FAS5 = 740,
+  SOL5 = 784,
+  LA5  = 880,
+  SI5  = 988
+};
+
+struct Nota {
+  uint16_t frekans;
+  uint8_t sure;
+};
+
+// Süre birimi: onaltılık
+// 1 = onaltılık, 2 = sekizlik
+// 3 = noktalı sekizlik, 4 = dörtlük
+// 8 = ikilik, 12 = noktalı ikilik
+
+#define N(nota, sure) {nota, sure}
+
+// Tekrarlanan ölçüler bir kez saklanır.
+// Her satırda en fazla 16 nota bulunur.
+const Nota kaliplar[][16] PROGMEM = {
+  // 0 — A-lı-şır kal-bim
+  {
+    N(SUS,2), N(MI5,2), N(SI5,2), N(SI5,2),
+    N(SI5,4), N(LA5,4)
+  },
+
+  // 1 — Sen-siz yaz-la-ra
+  {
+    N(SUS,4), N(FAS5,2), N(SOL5,2),
+    N(FAS5,3), N(MI5,1), N(MI5,4)
+  },
+
+  // 2 — Se-ni is-te-me-ye
+  {
+    N(SUS,2), N(MI5,2), N(SI5,2), N(SI5,2),
+    N(SI5,2), N(LA5,2), N(LA5,4)
+  },
+
+  // 3 — Ar-tık son ver
+  {
+    N(SUS,4), N(FAS5,2), N(MI5,2),
+    N(SOL5,4), N(FAS5,4)
+  },
+
+  // 4 — Dim / Te-ni-mi
+  {
+    N(MI5,4), N(DO5,2), N(RE5,2), N(MI5,4),
+    N(RE5,1), N(DO5,1), N(SI4,1), N(DO5,1)
+  },
+
+  // 5 — Ge-ce-le-ri a-rı / Aşk ben-siz a-rı
+  {
+    N(SI4,2), N(SUS,2), N(DO5,2), N(RE5,2),
+    N(MI5,2), N(RE5,2), N(DO5,2), N(SI4,2)
+  },
+
+  // 6 — Yo / Ol-mu-yo / Te-ni-mi
+  {
+    N(SI4,2), N(SUS,2), N(DO5,2), N(RE5,2),
+    N(MI5,4), N(RE5,1), N(DO5,1), N(SI4,1), N(DO5,1)
+  },
+
+  // 7 — Yo / sus
+  {
+    N(SI4,2), N(SUS,2), N(SUS,4), N(SUS,8)
+  },
+
+  // 8 — Gö-re-mez sen / A-ra aşkım
+  {
+    N(SUS,4), N(RE5,2), N(MI5,2),
+    N(FAS5,4), N(MI5,4)
+  },
+
+  // 9 — Bi-zi se-ve-mez sen / Ge-ce ya-da er-ken
+  {
+    N(RE5,2), N(RE5,2), N(RE5,2), N(SI4,2),
+    N(RE5,4), N(MI5,4)
+  },
+
+  // 10 — Yi-ne
+  {
+    N(SUS,12), N(MI5,2), N(MI5,2)
+  },
+
+  // 11 — Af-di-le-di ben-den
+  {
+    N(MI5,2), N(MI5,2), N(MI5,2),
+    N(FAS5,2), N(MI5,4), N(RE5,4)
+  },
+
+  // 12 — Tam ol-duk biz der-ken / Ko-pa-maz his-ler-den
+  {
+    N(SOL5,2), N(FAS5,2), N(MI5,2), N(RE5,2),
+    N(RE5,4), N(MI5,4)
+  },
+
+  // 13 — Hep is-te-dim ak-lı-na gel-mi-yim
+  {
+    N(SI4,2), N(SOL5,2), N(SOL5,2),
+    N(SOL5,1), N(SOL5,1), N(SOL5,2),
+    N(FAS5,1), N(FAS5,1), N(FAS5,2),
+    N(FAS5,1), N(FAS5,1)
+  },
+
+  // 14 — On-lar bi-ri ben-se bi-ta-ne-yim
+  {
+    N(SUS,2), N(FAS5,2), N(FAS5,2),
+    N(FAS5,1), N(FAS5,1), N(FAS5,2),
+    N(FAS5,1), N(SOL5,1), N(MI5,2),
+    N(MI5,1), N(MI5,1)
+  },
+
+  // 15 — Bü-tün his-le-ri ben sa-na ver-dim
+  {
+    N(SUS,2), N(SOL5,1), N(SOL5,1), N(SOL5,2),
+    N(SOL5,1), N(SOL5,1), N(SOL5,2),
+    N(FAS5,1), N(FAS5,1), N(FAS5,2), N(FAS5,2)
+  },
+
+  // 16 — Ne-den aşkı-mı yer-le-re ser-din
+  {
+    N(SUS,2), N(FAS5,1), N(FAS5,1), N(FAS5,2),
+    N(FAS5,1), N(FAS5,1), N(FAS5,2),
+    N(FAS5,1), N(SOL5,1), N(MI5,2), N(MI5,2)
+  },
+
+  // 17 — A-ra-san da ar-tık dön-mem
+  {
+    N(SUS,2), N(RE5,1), N(RE5,1),
+    N(RE5,2), N(RE5,2), N(FAS5,2),
+    N(MI5,2), N(RE5,2), N(RE5,1), N(MI5,1)
+  },
+
+  // 18 — Gö-zün ar-ka-da kal-ma-sın lüt-fen
+  {
+    N(SUS,2), N(RE5,1), N(RE5,1), N(RE5,2),
+    N(RE5,1), N(RE5,1), N(FAS5,2),
+    N(MI5,1), N(MI5,1), N(RE5,2),
+    N(RE5,1), N(MI5,1)
+  },
+
+  // 19 — İt-sen de ben ye-re düş-mem
+  {
+    N(SUS,2), N(RE5,2), N(RE5,2), N(RE5,2),
+    N(FAS5,2), N(MI5,1), N(MI5,1),
+    N(RE5,2), N(MI5,2)
+  },
+
+  // 20 — Ar-tık son ver
+  {
+    N(SUS,4), N(SI5,2), N(SOL5,2),
+    N(LA5,4), N(SOL5,2), N(LA5,2)
+  },
+
+  // 21 — Dim / Te-ni-mi
+  {
+    N(SI5,2), N(SUS,2), N(DO5,2), N(RE5,2),
+    N(MI5,4), N(RE5,1), N(DO5,1), N(SI4,1), N(DO5,1)
+  }
+};
+
+// İlk çalma: 1–21. ölçüler
+const byte ilkBolum[] PROGMEM = {
+  0, 1, 2, 3,
+  4, 5, 6, 5,
+  6, 5, 6, 5,
+  7, 8, 9, 8, 9,
+  10, 11, 12, 12
+};
+
+// D.C. al Coda: başa dön, 8. ölçüye kadar çal
+const byte basaDonus[] PROGMEM = {
+  0, 1, 2, 3, 4, 5, 6, 5
+};
+
+// Coda: 22–38. ölçüler
+const byte coda[] PROGMEM = {
+  13, 14, 15, 16, 17, 18, 19, 20,
+  21, 5, 6, 5, 6, 5, 6, 5, 7
+};
+
+void cikislariAyarla(byte seviye) {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    digitalWrite(PINLER[i], seviye);
+  }
+}
+
+void notaCal(uint16_t frekans, unsigned long sureMs) {
+  if (frekans == SUS) {
+    cikislariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+
+  const unsigned long yarimPeriyotUs =
+      500000UL / frekans;
+
+  const unsigned long boslukMs = 15;
+  const unsigned long sesSuresi = sureMs - boslukMs;
+  const unsigned long baslangic = millis();
+
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+
+    cikislariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+
+    kenar = micros();
+
+    cikislariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+
+  cikislariAyarla(LOW);
+  delay(boslukMs);
+}
+
+void kalipCal(byte kalipNo) {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  for (byte i = 0; i < 16; i++) {
+    Nota nota;
+
+    memcpy_P(
+      &nota,
+      &kaliplar[kalipNo][i],
+      sizeof(Nota)
+    );
+
+    // Ölçünün sonu
+    if (nota.sure == 0) {
+      break;
+    }
+
+    notaCal(nota.frekans, birimMs * nota.sure);
+  }
+}
+
+void bolumCal(const byte* bolum, unsigned int uzunluk) {
+  for (unsigned int i = 0; i < uzunluk; i++) {
+    kalipCal(pgm_read_byte(bolum + i));
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    pinMode(PINLER[i], OUTPUT);
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void loop() {
+  bolumCal(ilkBolum, sizeof(ilkBolum));
+  bolumCal(basaDonus, sizeof(basaDonus));
+  bolumCal(coda, sizeof(coda));
+
+  delay(3000);
+}

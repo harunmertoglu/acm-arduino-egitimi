@@ -1,0 +1,152 @@
+/*
+Çav Bella
+ARDUINO UNO — 2 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Buzzer 2: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+const byte buzzerPinleri[] = {7, 8};
+const byte buzzerSayisi = 2;
+
+const unsigned int BPM = 120;
+
+enum : unsigned int {
+  SUS = 0,
+  MI4 = 330,
+  LA4 = 440,
+  SI4 = 494,
+  DO5 = 523,
+  RE5 = 587,
+  MI5 = 659,
+  FA5 = 698
+};
+
+struct Nota {
+  unsigned int frekans;
+  byte sure;
+};
+
+// Süre birimi: sekizlik nota
+// 1 = sekizlik
+// 2 = dörtlük
+// 3 = noktalı dörtlük
+// 4 = ikilik
+// 6 = noktalı ikilik
+//
+// Bağlı La notaları tek uzun nota olarak yazıldı.
+
+const Nota melodi[] = {
+  // Giriş: mi la si
+  {MI4,1}, {LA4,1}, {SI4,1},
+
+  // Do la___ / mi la si
+  {DO5,1}, {LA4,4},
+  {MI4,1}, {LA4,1}, {SI4,1},
+
+  // Do la___ / mi la si
+  {DO5,1}, {LA4,4},
+  {MI4,1}, {LA4,1}, {SI4,1},
+
+  // Do si la / do si la
+  {DO5,2}, {SI4,1}, {LA4,1},
+  {DO5,2}, {SI4,1}, {LA4,1},
+
+  // Mi mi mi / re mi
+  {MI5,2}, {MI5,2}, {MI5,2},
+  {RE5,1}, {MI5,1},
+
+  // Fa fa fa___ / fa mi re
+  {FA5,1}, {FA5,1}, {FA5,3},
+  {FA5,1}, {MI5,1}, {RE5,1},
+
+  // Mi mi mi___ / mi re do
+  {MI5,1}, {MI5,1}, {MI5,3},
+  {MI5,1}, {RE5,1}, {DO5,1},
+
+  // Si mi do re
+  {SI4,2}, {MI5,2}, {DO5,2}, {RE5,2},
+
+  // Mi______ / re mi
+  {MI5,6}, {RE5,1}, {MI5,1},
+
+  // Fa fa fa___ / fa mi re
+  {FA5,1}, {FA5,1}, {FA5,3},
+  {FA5,1}, {MI5,1}, {RE5,1},
+
+  // Mi mi mi___ / mi re do
+  {MI5,1}, {MI5,1}, {MI5,3},
+  {MI5,1}, {RE5,1}, {DO5,1},
+
+  // Si mi do si
+  {SI4,2}, {MI5,2}, {DO5,2}, {SI4,2},
+
+  // La____ / sus
+  {LA4,4}, {SUS,1}
+};
+
+void tumBuzzerlariAyarla(byte seviye) {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    digitalWrite(buzzerPinleri[i], seviye);
+  }
+}
+
+void ikiBuzzerCal(int frekans, unsigned long sureMs) {
+  if (frekans == 0) {
+    tumBuzzerlariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+  const unsigned long yarimPeriyotUs = 500000UL / frekans;
+  const unsigned long sesSuresi = sureMs * 9 / 10;
+  const unsigned long baslangic = millis();
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+    tumBuzzerlariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+    kenar = micros();
+    tumBuzzerlariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+  tumBuzzerlariAyarla(LOW);
+  delay(sureMs - sesSuresi);
+}
+
+void setup() {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    pinMode(buzzerPinleri[i], OUTPUT);
+    digitalWrite(buzzerPinleri[i], LOW);
+  }
+}
+
+void loop() {
+  const unsigned long sekizlikMs = 60000UL / BPM / 2;
+
+  const unsigned int notaSayisi =
+      sizeof(melodi) / sizeof(melodi[0]);
+
+  for (unsigned int i = 0; i < notaSayisi; i++) {
+    ikiBuzzerCal(
+      melodi[i].frekans,
+      sekizlikMs * melodi[i].sure
+    );
+  }
+
+  delay(3000);  // Üç saniye sonra yeniden çal
+}

@@ -1,0 +1,365 @@
+/*
+Aya Benzer — Mustafa Sandal
+ARDUINO UNO — 5 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D4, - uç GND
+  Buzzer 2: + uç D5, - uç GND
+  Buzzer 3: + uç D6, - uç GND
+  Buzzer 4: + uç D7, - uç GND
+  Buzzer 5: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+#include <avr/pgmspace.h>
+#include <string.h>
+
+const byte PINLER[] = {4, 5, 6, 7, 8};
+const byte BUZZER_SAYISI = 5;
+const unsigned int BPM = 120;
+
+enum : uint16_t {
+  SUS = 0,
+  LA3 = 220,
+  SI3 = 247,
+  DO4 = 262,
+  RE4 = 294,
+  MI4 = 330,
+  FA4 = 349,
+  FAS4 = 370,
+  SOL4 = 392,
+  SOLS4 = 415,
+  LA4 = 440,
+  SI4 = 494,
+  DO5 = 523,
+  RE5 = 587,
+  MI5 = 659
+};
+
+struct Nota {
+  uint16_t frekans;
+  uint8_t sure;
+};
+
+// Süre birimi: onaltılık
+// 1 = onaltılık, 2 = sekizlik
+// 3 = noktalı sekizlik, 4 = dörtlük
+// 8 = ikilik
+//
+// Bağlı notaların bazıları tek uzun nota olarak yazıldı.
+
+#define N(nota, sure) {nota, sure}
+
+const Nota olculer[][16] PROGMEM = {
+  // 1
+  {
+    N(LA4,3), N(LA4,3), N(LA4,1), N(FA4,3),
+    N(SUS,2), N(FA4,2), N(FA4,2)
+  },
+
+  // 2
+  {
+    N(SOL4,3), N(SOL4,3), N(SOL4,1), N(MI4,3),
+    N(SUS,2), N(MI4,2), N(MI4,2)
+  },
+
+  // 3
+  {
+    N(LA4,3), N(LA4,3), N(LA4,1), N(FA4,3),
+    N(SUS,2), N(FA4,2), N(FA4,2)
+  },
+
+  // 4
+  {
+    N(SUS,1), N(SOLS4,2), N(LA4,3), N(SI4,3),
+    N(SUS,2), N(SI4,1), N(DO5,1), N(SI4,1), N(LA4,2)
+  },
+
+  // 5
+  {
+    N(LA4,1), N(SOL4,1), N(LA4,1), N(LA4,2),
+    N(LA4,1), N(SOL4,1), N(FA4,1), N(FA4,4),
+    N(MI4,1), N(FA4,1), N(MI4,1), N(FA4,1)
+  },
+
+  // 6
+  {
+    N(SOL4,2), N(SOL4,1), N(LA4,1),
+    N(FA4,1), N(SOL4,1), N(FA4,1), N(SOL4,1),
+    N(MI4,1), N(SI4,2), N(SI4,1),
+    N(SI4,1), N(DO5,1), N(SI4,1), N(LA4,1)
+  },
+
+  // 7
+  {
+    N(LA4,1), N(SOL4,1), N(LA4,1), N(LA4,2),
+    N(LA4,1), N(SOL4,1), N(FA4,1), N(FA4,3),
+    N(FA4,1), N(FA4,1), N(FA4,1), N(FA4,1)
+  },
+
+  // 8 — birinci bitiş
+  {
+    N(SUS,1), N(SI4,2), N(SI4,1), N(SI4,1),
+    N(DO5,1), N(SI4,1), N(LA4,1), N(SI4,4),
+    N(SI4,1), N(DO5,1), N(SI4,1), N(LA4,1)
+  },
+
+  // 9 — ikinci bitiş / Ben
+  {
+    N(MI4,1), N(SI4,2), N(SI4,1),
+    N(SI4,1), N(DO5,1), N(SI4,1), N(LA4,1),
+    N(SI4,4), N(SUS,2), N(LA3,2)
+  },
+
+  // 10 — Dönerim etrafında hiç kimse fark
+  {
+    N(MI4,1), N(MI4,1), N(MI4,1), N(MI4,2),
+    N(MI4,2), N(RE4,2), N(RE4,1), N(DO4,2),
+    N(SI3,2), N(LA3,1), N(LA3,1)
+  },
+
+  // 11 — Etmez / Aşk bu affet
+  {
+    N(LA3,1), N(RE4,2), N(RE4,5), N(SUS,4),
+    N(SI3,2), N(LA3,1), N(LA3,1)
+  },
+
+  // 12 — Etmez / Işıkla
+  {
+    N(LA3,1), N(RE4,2), N(RE4,5), N(SUS,4),
+    N(DO4,1), N(RE4,2), N(DO4,1)
+  },
+
+  // 13 — Rın sönerse / Hep
+  {
+    N(MI4,5), N(RE4,1), N(DO4,2),
+    N(SI3,4), N(SUS,2), N(LA3,2)
+  },
+
+  // 14 — Dönerim etrafında hiç kimse fark
+  {
+    N(MI4,1), N(MI4,1), N(MI4,1), N(MI4,2),
+    N(MI4,2), N(RE4,2), N(RE4,1), N(DO4,2),
+    N(SI3,2), N(LA3,1), N(LA3,1)
+  },
+
+  // 15 — Etmez / Aşk bu göster
+  {
+    N(LA3,1), N(RE4,2), N(RE4,5), N(SUS,4),
+    N(DO4,2), N(SI3,1), N(LA3,1)
+  },
+
+  // 16 — Termez / Rüyala
+  {
+    N(LA3,1), N(MI4,2), N(RE4,5), N(SUS,4),
+    N(DO4,1), N(RE4,2), N(DO4,1)
+  },
+
+  // 17 — Rın biterse / İyidin
+  {
+    N(MI4,5), N(MI4,1), N(RE4,1), N(DO4,1),
+    N(SI3,4), N(SI4,1), N(DO5,1), N(SI4,2)
+  },
+
+  // 18 — Le / Duyarsın sesimi u
+  {
+    N(LA4,4), N(SUS,3), N(MI5,1),
+    N(RE5,2), N(DO5,2),
+    N(SI4,1), N(SI4,1), N(LA4,1), N(LA4,1)
+  },
+
+  // 19 — Zaklardan / Din
+  {
+    N(SOL4,4), N(SI4,4), N(LA4,4),
+    N(SUS,2), N(SOL4,2)
+  },
+
+  // 20 — Le / En kuytu acı
+  {
+    N(LA4,4), N(SUS,2), N(MI5,2),
+    N(RE5,2), N(DO5,2), N(SI4,2), N(LA4,2)
+  },
+
+  // 21 — Lardan / Kalbin
+  {
+    N(LA4,8), N(SI4,4),
+    N(RE5,2), N(DO5,1), N(SI4,1)
+  },
+
+  // 22 — De / Yorulduysa yolcu
+  {
+    N(LA4,4), N(SUS,3), N(MI5,1),
+    N(RE5,2), N(DO5,2),
+    N(SI4,1), N(LA4,2), N(LA4,1)
+  },
+
+  // 23 — Luklardan / Vaz
+  {
+    N(SOL4,4), N(SI4,4), N(LA4,4),
+    N(SUS,2), N(SOL4,2)
+  },
+
+  // 24 — Geç / Artık yıldızlar
+  {
+    N(LA4,4), N(SUS,2), N(MI5,2),
+    N(RE5,2), N(DO5,2), N(SI4,2), N(LA4,2)
+  },
+
+  // 25 — Dan / Aya ben
+  {
+    N(SI4,1), N(LA4,1), N(SI4,6),
+    N(SUS,2), N(SI4,1), N(DO5,2), N(SI4,3)
+  },
+
+  // 26 — Zer / Yüreğim E doğal olar
+  {
+    N(LA4,1), N(SOL4,1), N(LA4,1), N(SI4,1),
+    N(LA4,2), N(SOL4,1), N(FA4,1),
+    N(FA4,3), N(FA4,1), N(MI4,1), N(FA4,1),
+    N(MI4,1), N(FA4,1)
+  },
+
+  // 27 — Rak / Takipteyim / Aşk kaderi çö
+  {
+    N(SOL4,2), N(SOL4,1), N(LA4,1),
+    N(SOL4,2), N(FA4,1), N(MI4,2),
+    N(MI4,2), N(MI4,1),
+    N(SI4,1), N(DO5,1), N(SI4,1), N(LA4,1)
+  },
+
+  // 28 — birinci bitiş / Zer semeğer / Bekle
+  {
+    N(LA4,1), N(SOL4,1), N(LA4,4),
+    N(SOL4,1), N(FA4,1), N(FA4,4),
+    N(SUS,2), N(MI4,1), N(MI4,1)
+  },
+
+  // 29 — Geliyorum aşkım / Aya ben
+  {
+    N(SI4,1), N(SI4,1), N(SI4,1), N(SI4,3),
+    N(DO5,2), N(SI4,4),
+    N(SI4,1), N(DO5,1), N(SI4,2)
+  },
+
+  // 30 — ikinci bitiş / Zer semeğer
+  {
+    N(LA4,1), N(SOL4,1), N(LA4,4),
+    N(SOL4,1), N(FA4,1), N(FA4,4),
+    N(SUS,2), N(MI4,1), N(MI4,1)
+  },
+
+  // 31 — Seni seviyorum aşkım
+  {
+    N(SUS,2), N(MI4,1), N(MI4,1),
+    N(SI4,1), N(SI4,1), N(SI4,1), N(SI4,3),
+    N(DO5,2), N(SI4,4)
+  },
+
+  // 32 — son
+  {
+    N(SOLS4,2), N(FAS4,1), N(SOLS4,1),
+    N(LA4,4), N(SUS,8)
+  }
+};
+
+void cikislariAyarla(byte seviye) {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    digitalWrite(PINLER[i], seviye);
+  }
+}
+
+void notaCal(uint16_t frekans, unsigned long sureMs) {
+  if (frekans == SUS) {
+    cikislariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+
+  const unsigned long yarimPeriyotUs =
+      500000UL / frekans;
+
+  const unsigned long boslukMs = 15;
+  const unsigned long sesSuresi = sureMs - boslukMs;
+  const unsigned long baslangic = millis();
+
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+
+    cikislariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+
+    kenar = micros();
+
+    cikislariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+
+  cikislariAyarla(LOW);
+  delay(boslukMs);
+}
+
+// Ölçü numaraları 1'den başlar.
+void olcuCal(byte olcuNo) {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  for (byte i = 0; i < 16; i++) {
+    Nota nota;
+
+    memcpy_P(
+      &nota,
+      &olculer[olcuNo - 1][i],
+      sizeof(Nota)
+    );
+
+    if (nota.sure == 0) {
+      break;
+    }
+
+    notaCal(nota.frekans, birimMs * nota.sure);
+  }
+}
+
+void bolumCal(byte ilk, byte son) {
+  for (byte olcu = ilk; olcu <= son; olcu++) {
+    olcuCal(olcu);
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < BUZZER_SAYISI; i++) {
+    pinMode(PINLER[i], OUTPUT);
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void loop() {
+  // Giriş ve ilk tekrarın birinci bitişi
+  bolumCal(1, 8);
+
+  // Tekrar: 8. ölçüyü atlayıp ikinci bitişe geç
+  bolumCal(5, 7);
+  bolumCal(9, 25);
+
+  // Nakarat ve birinci bitiş
+  bolumCal(26, 29);
+
+  // Nakarat tekrarı ve ikinci bitiş
+  bolumCal(26, 27);
+  bolumCal(30, 32);
+
+  delay(3000);
+}

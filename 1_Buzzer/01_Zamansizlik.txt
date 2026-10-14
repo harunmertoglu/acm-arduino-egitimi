@@ -1,0 +1,214 @@
+/*
+Zamansızlık — Manifest
+ARDUINO UNO — 1 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+const byte buzzerPinleri[] = {7};
+const byte buzzerSayisi = 1;
+
+const int BPM = 120;
+
+// Nota frekansları
+const int SUS  = 0;
+const int SOL4 = 392;
+const int LA4  = 440;
+const int SI4  = 494;
+const int DO5  = 523;
+const int RE5  = 587;
+const int RES5 = 622;  // Re diyez
+const int MI5  = 659;
+const int FAS5 = 740;  // Fa diyez
+const int SOL5 = 784;
+const int LA5  = 880;
+const int SI5  = 988;
+
+struct Nota {
+  int frekans;
+  byte sure;  // 1 = onaltılık, 2 = sekizlik, 4 = dörtlük
+};
+
+const Nota melodi[] = {
+  // 1
+  {SUS,4}, {SUS,2}, {SI4,2}, {MI5,2},
+  {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // 2
+  {MI5,3}, {DO5,2}, {SUS,1}, {DO5,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // 3
+  {MI5,3}, {SI4,2}, {SUS,1}, {SI4,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // 4
+  {FAS5,2}, {MI5,2}, {RES5,2}, {MI5,2},
+  {FAS5,2}, {MI5,2}, {SOL5,2}, {FAS5,2},
+
+  // 5 — birinci bitiş
+  {MI5,4}, {SUS,2}, {SI4,2}, {MI5,2},
+  {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // Tekrar
+  {MI5,3}, {DO5,2}, {SUS,1}, {DO5,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  {MI5,3}, {SI4,2}, {SUS,1}, {SI4,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  {FAS5,2}, {MI5,2}, {RES5,2}, {MI5,2},
+  {FAS5,2}, {MI5,2}, {SOL5,2}, {FAS5,2},
+
+  // 6 — ikinci bitiş
+  {MI5,4}, {SUS,4}, {SUS,4}, {LA4,2}, {SI4,2},
+
+  // 7
+  {DO5,6}, {LA4,2}, {RE5,2},
+  {DO5,2}, {DO5,2}, {RE5,2},
+
+  // 8
+  {SI4,3}, {DO5,1}, {SI4,3}, {LA4,1},
+  {SI4,4}, {SUS,4},
+
+  // 9
+  {LA4,3}, {SOL4,1}, {LA4,3}, {SOL4,1},
+  {LA4,3}, {SOL4,1}, {LA4,3}, {SI4,1},
+
+  // 10
+  {SI4,4}, {SUS,4}, {SUS,2},
+  {LA4,1}, {LA4,1}, {LA4,2}, {SI4,2},
+
+  // 11
+  {DO5,6}, {LA4,2}, {RE5,3},
+  {DO5,1}, {DO5,3}, {RE5,1},
+
+  // 12
+  {SI4,3}, {LA4,1}, {SI4,3}, {LA4,1},
+  {SI4,4}, {SUS,4},
+
+  // 13
+  {LA4,3}, {SOL4,1}, {LA4,2}, {SOL4,2},
+  {LA4,1}, {LA4,2}, {SOL4,1}, {LA4,3}, {SI4,1},
+
+  // 14
+  {SI4,4}, {SUS,4}, {SUS,4}, {SUS,2}, {SI4,2},
+
+  // 15
+  {FAS5,3}, {MI5,1}, {FAS5,3}, {MI5,1},
+  {FAS5,3}, {MI5,1}, {FAS5,2}, {MI5,2},
+
+  // 16
+  {FAS5,1}, {SOL5,3}, {FAS5,3}, {MI5,1},
+  {MI5,4}, {RES5,2}, {MI5,2},
+
+  // 17
+  {FAS5,3}, {MI5,1}, {FAS5,3}, {MI5,1},
+  {FAS5,3}, {MI5,1}, {FAS5,3}, {MI5,1},
+
+  // 18
+  {FAS5,3}, {SOL5,1}, {FAS5,3}, {MI5,1},
+  {MI5,1}, {FAS5,1}, {SOL5,2}, {SUS,3}, {MI5,1},
+
+  // 19
+  {SI5,2}, {LA5,2}, {SOL5,3}, {FAS5,1},
+  {LA5,1}, {SOL5,3}, {MI5,2}, {MI5,2},
+
+  // 20
+  {LA5,3}, {SOL5,1}, {FAS5,3}, {MI5,1},
+  {SOL5,1}, {FAS5,1}, {MI5,2}, {SUS,2}, {MI5,2},
+
+  // 21
+  {FAS5,3}, {MI5,1}, {FAS5,2}, {MI5,2},
+  {FAS5,2}, {SOL5,1}, {FAS5,3}, {MI5,2},
+
+  // 22
+  {MI5,4}, {SUS,2}, {SI4,2}, {MI5,2},
+  {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // 23
+  {MI5,3}, {DO5,2}, {SUS,1}, {DO5,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2},
+
+  // 24
+  {MI5,3}, {SI4,2}, {SUS,1}, {SI4,2},
+  {MI5,2}, {FAS5,2}, {SOL5,2}, {FAS5,2}
+};
+
+void tumBuzzerlariAyarla(byte seviye) {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    digitalWrite(buzzerPinleri[i], seviye);
+  }
+}
+
+void buzzerlariCal(int frekans, unsigned long sureMs) {
+  if (frekans == SUS) {
+    tumBuzzerlariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+
+  const unsigned long yarimPeriyotUs =
+      500000UL / frekans;
+
+  const unsigned long sesSuresi = sureMs * 9 / 10;
+  const unsigned long baslangic = millis();
+
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+
+    tumBuzzerlariAyarla(HIGH);
+
+    // Pinleri ayarlarken geçen süreyi de hesaba kat.
+    while (micros() - kenar < yarimPeriyotUs) {}
+
+    kenar = micros();
+    tumBuzzerlariAyarla(LOW);
+
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+
+  tumBuzzerlariAyarla(LOW);
+
+  // Notalar arasında kısa boşluk
+  delay(sureMs - sesSuresi);
+}
+
+void setup() {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    pinMode(buzzerPinleri[i], OUTPUT);
+    digitalWrite(buzzerPinleri[i], LOW);
+  }
+}
+
+void loop() {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  const unsigned int notaSayisi =
+      sizeof(melodi) / sizeof(melodi[0]);
+
+  for (unsigned int i = 0; i < notaSayisi; i++) {
+    buzzerlariCal(
+      melodi[i].frekans,
+      birimMs * melodi[i].sure
+    );
+  }
+
+  delay(3000);  // Üç saniye bekle, yeniden çal
+}

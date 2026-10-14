@@ -1,0 +1,280 @@
+/*
+Bir Derdim Var — Mor ve Ötesi (yalnızca nakarat)
+ARDUINO UNO — 5 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D4, - uç GND
+  Buzzer 2: + uç D5, - uç GND
+  Buzzer 3: + uç D6, - uç GND
+  Buzzer 4: + uç D7, - uç GND
+  Buzzer 5: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Tüm bağlı buzzerlar aynı melodiyi birlikte çalar.
+*/
+
+#include <avr/pgmspace.h>
+#include <string.h>
+
+const byte buzzerPinleri[] = {4, 5, 6, 7, 8};
+const byte buzzerSayisi = 5;
+
+const unsigned int BPM = 110;
+
+enum : unsigned int {
+  SUS = 0,
+  MI4 = 330,
+  FAS4 = 370,
+  SOL4 = 392,
+  LA4 = 440,
+  SI4 = 494,
+  DOS5 = 554,
+  RE5 = 587,
+  MI5 = 659,
+  FAS5 = 740,
+  SOL5 = 784,
+  LA5 = 880,
+  SI5 = 988,
+  DOS6 = 1109,
+  RE6 = 1175,
+  MI6 = 1319,
+  FAS6 = 1480
+};
+
+struct Nota {
+  uint16_t frekans;
+  uint8_t sure;
+};
+
+// Süre birimi: onaltılık
+// 2 = sekizlik, 4 = dörtlük
+// 8 = ikilik, 16 = birlik
+
+#define N(nota, sure) {nota, sure}
+
+// Tekrarlanan ölçüler bellekte bir kez saklanır.
+const Nota kaliplar[][8] PROGMEM = {
+  // 0 — ana giriş
+  {
+    N(SI4,2), N(FAS5,2), N(SI5,2), N(DOS6,2),
+    N(RE6,2), N(DOS6,2), N(SI5,2), N(FAS5,2)
+  },
+
+  // 1 — girişin son ölçüsü
+  {
+    N(SI4,2), N(FAS5,2), N(SI5,2), N(SI4,2),
+    N(FAS5,2), N(LA5,2), N(SI5,2), N(LA5,2)
+  },
+
+  // 2
+  {N(FAS4,8), N(RE5,8)},
+
+  // 3
+  {N(DOS5,4), N(SI4,4), N(LA4,4), N(SOL4,4)},
+
+  // 4
+  {N(DOS5,4), N(SI4,4), N(DOS5,4), N(RE5,4)},
+
+  // 5
+  {N(MI4,8), N(RE5,8)},
+
+  // 6
+  {
+    N(DOS5,4), N(SI4,4), N(DOS5,4),
+    N(RE5,2), N(DOS5,2)
+  },
+
+  // 7
+  {N(RE5,8), N(RE5,8)},
+
+  // 8
+  {
+    N(DOS5,4), N(SI4,4), N(LA4,4),
+    N(SOL4,2), N(FAS4,2)
+  },
+
+  // 9
+  {N(SOL4,8), N(RE5,8)},
+
+  // 10
+  {
+    N(DOS5,4), N(SI4,2), N(LA4,2),
+    N(LA4,2), N(SOL4,2), N(SOL4,2), N(FAS4,2)
+  },
+
+  // 11 — yükselen giriş
+  {
+    N(FAS4,2), N(FAS5,2), N(SI5,2), N(DOS6,2),
+    N(RE6,2), N(DOS6,2), N(SI5,2), N(FAS5,2)
+  },
+
+  // 12
+  {
+    N(MI6,2), N(RE6,2), N(DOS6,2), N(SI5,2),
+    N(FAS6,2), N(MI6,2), N(RE6,2), N(DOS6,2)
+  },
+
+  // 13
+  {
+    N(RE6,2), N(SOL5,2), N(FAS5,2), N(SOL5,2),
+    N(RE6,2), N(SOL5,2), N(FAS5,2), N(SOL5,2)
+  },
+
+  // 14
+  {
+    N(DOS6,2), N(SOL5,2), N(SI5,2), N(SOL5,2),
+    N(LA5,2), N(FAS5,2), N(SOL5,2), N(FAS5,2)
+  },
+
+  // 15
+  {
+    N(SI5,2), N(DOS6,2), N(DOS6,2), N(RE6,2),
+    N(RE6,2), N(MI6,2), N(MI6,2), N(FAS6,2)
+  },
+
+  // 16 — Bak bu
+  {N(RE5,8), N(FAS5,8)},
+
+  // 17 — son perdede / bundan sonra / yok hiçbir şey
+  {N(MI5,4), N(RE5,4), N(DOS5,4), N(RE5,4)},
+
+  // 18
+  {N(DOS5,8), N(FAS5,8)},
+
+  // 19 — yok yok
+  {N(DOS5,8), N(DOS5,8)},
+
+  // 20 — dim bir derdim
+  {N(DOS5,4), N(SOL4,4), N(RE5,4), N(DOS5,4)},
+
+  // 21 — var
+  {N(SI4,16)},
+
+  // 22
+  {N(SUS,4), N(SI4,4), N(DOS5,4), N(RE5,4)},
+
+  // 23 — var
+  {N(DOS5,16)},
+
+  // 24
+  {N(SUS,4), N(DOS5,4), N(RE5,4), N(MI5,4)},
+
+  // 25 — var
+  {N(RE5,16)},
+
+  // 26 — içimde
+  {N(MI5,4), N(MI5,4), N(FAS5,4), N(SOL5,4)},
+
+  // 27 — iki ölçü boyunca bağlı Fa diyez
+  {N(FAS5,32)},
+
+  // 28 — son ölçüdeki bağlı notalar
+  {N(DOS5,10), N(SI4,6)}
+};
+
+// Görseldeki 5–75. ölçülerin çalma sırası.
+// 69 ve 70. ölçüler bağlı olduğundan birlikte saklandı.
+const byte sira[] PROGMEM = {
+  // 5–12
+  2, 3, 2, 4, 5, 3, 2, 6,
+
+  // 13–19
+  7, 8, 9, 10, 2, 3, 2,
+
+  // 20–26
+  4, 5, 8, 2, 6, 7, 8,
+
+  // 27–31
+  9, 8, 11, 12, 13,
+
+  // 32–35
+  14, 0, 12, 13,
+
+  // 36–42
+  14, 2, 3, 2, 4, 5, 3,
+
+  // 43–48
+  2, 6, 7, 8, 9, 10,
+
+  // 49–52
+  11, 0, 0, 15,
+
+  // 53–60
+  16, 17, 18, 17, 18, 17, 19, 19,
+
+  // 61–70
+  9, 20, 21, 22, 23, 24, 25, 26, 27,
+
+  // 71–75
+  9, 3, 9, 4, 28
+};
+
+void tumBuzzerlariAyarla(byte seviye) {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    digitalWrite(buzzerPinleri[i], seviye);
+  }
+}
+
+void ikiBuzzerCal(int frekans, unsigned long sureMs) {
+  if (frekans == 0) {
+    tumBuzzerlariAyarla(LOW);
+    delay(sureMs);
+    return;
+  }
+  const unsigned long yarimPeriyotUs = 500000UL / frekans;
+  const unsigned long sesSuresi = sureMs * 9 / 10;
+  const unsigned long baslangic = millis();
+  while (millis() - baslangic < sesSuresi) {
+    unsigned long kenar = micros();
+    tumBuzzerlariAyarla(HIGH);
+    while (micros() - kenar < yarimPeriyotUs) {}
+    kenar = micros();
+    tumBuzzerlariAyarla(LOW);
+    while (micros() - kenar < yarimPeriyotUs) {}
+  }
+  tumBuzzerlariAyarla(LOW);
+  delay(sureMs - sesSuresi);
+}
+
+void kalipCal(byte kalipNo) {
+  const unsigned long birimMs = 60000UL / BPM / 4;
+
+  for (byte i = 0; i < 8; i++) {
+    Nota nota;
+    memcpy_P(&nota, &kaliplar[kalipNo][i], sizeof(Nota));
+
+    if (nota.sure == 0) {
+      break;
+    }
+
+    ikiBuzzerCal(nota.frekans, birimMs * nota.sure);
+  }
+}
+
+void setup() {
+  for (byte i = 0; i < buzzerSayisi; i++) {
+    pinMode(buzzerPinleri[i], OUTPUT);
+    digitalWrite(buzzerPinleri[i], LOW);
+  }
+}
+
+void loop() {
+  for (byte i = 0; i < 12; i++) {
+    kalipCal(pgm_read_byte(&sira[i]));
+  }
+  const unsigned long birimMs = 60000UL / BPM / 4;
+  ikiBuzzerCal(FAS4, birimMs * 8);
+  delay(2000);
+}

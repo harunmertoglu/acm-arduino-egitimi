@@ -1,0 +1,303 @@
+/*
+Tame Impala — adı belirtilmeyen piyano bölümü
+ARDUINO UNO — 2 PASİF BUZZER
+
+BAĞLANTI
+  Buzzer 1: + uç D7, - uç GND
+  Buzzer 2: + uç D8, - uç GND
+  Çıkış pinlerini birbirine bağlamayın.
+  Bağlantıları kartın enerjisini keserek değiştirin.
+
+YÜKLEME
+  1. Arduino IDE'de yeni bir proje açın.
+  2. Bu dosyanın tamamını kopyalayıp editöre yapıştırın.
+  3. Arduino Uno kartını ve kartınızın portunu seçin.
+  4. Yükle düğmesine basın. Şarkı otomatik başlar ve tekrar eder.
+  5. BPM değerini artırmak hızlandırır, azaltmak yavaşlatır.
+
+NOTLAR
+  Pasif buzzer gerekir. Doğrudan bağlantı uygun düşük akımlı piezo içindir;
+  daha fazla akım gerektiren parçalar için sürücü kullanın.
+  Ritimler yaklaşık aktarılmıştır. Donanımda dinleme testi yapılmamıştır.
+  Yalnızca gönderilen 16 ölçülük piyano bölümü vardır.
+  D7 ana melodiyi, D8 bası çalar; akorlar tek melodi sesine indirgenmiştir.
+*/
+
+#include <avr/pgmspace.h>
+#include <string.h>
+
+const byte PINLER[] = {7, 8};
+const unsigned int BPM = 83;
+
+// Dört bemollü ton: Si, Mi, La, Re bemol
+enum : uint16_t {
+  SUS = 0,
+
+  FA2  = 87,
+  SIB2 = 117,
+  DO3  = 131,
+  REB3 = 139,
+  MIB3 = 156,
+  FA3  = 175,
+
+  LAB3 = 208,
+  SIB3 = 233,
+  DO4  = 262,
+  REB4 = 277,
+  MIB4 = 311,
+  FA4  = 349,
+  SOL4 = 392,
+  LAB4 = 415,
+  SIB4 = 466,
+  DO5  = 523,
+  REB5 = 554,
+  MIB5 = 622,
+  FA5  = 698
+};
+
+struct Olay {
+  uint16_t ses[3];
+  uint8_t sure;
+};
+
+// Süre birimi: onaltılık nota
+// 1 = onaltılık
+// 2 = sekizlik
+// 4 = dörtlük
+// 8 = ikilik
+// 16 = birlik
+//
+// Bağlı notaların süreleri birleştirilmiştir.
+
+#define M(n, t)       {{n, n, n}, t}
+#define A(a, b, c, t) {{a, b, c}, t}
+#define R(t)          {{SUS, SUS, SUS}, t}
+
+// Üst porte — 16 ölçü
+const Olay melodi[] PROGMEM = {
+  // 1–3: üst porte susuyor, bas çalıyor
+  R(16),
+  R(16),
+  R(16),
+
+  // 4
+  R(4), R(2),
+  M(DO4,1), M(REB4,1),
+  M(FA4,1), M(MIB4,2), M(DO4,1),
+  M(REB4,1), M(DO4,2), M(SIB3,1),
+
+  // 5
+  R(2),
+  M(LAB4,2), M(LAB4,2), M(SOL4,2),
+  M(SOL4,3), M(FA4,3), M(SIB4,2),
+
+  // 6
+  M(SIB4,2), M(LAB4,2), M(SOL4,2),
+  M(FA4,10),
+
+  // 7–8
+  R(16),
+  R(16),
+
+  // 9
+  R(2),
+  M(LAB4,2), M(LAB4,2), M(SOL4,2),
+  M(SOL4,3), M(FA4,3), M(SIB4,2),
+
+  // 10
+  M(SIB4,2), M(LAB4,2), M(SOL4,3),
+  M(FA4,9),
+
+  // 11
+  M(FA4,4), R(2),
+  M(SIB4,1), M(DO5,1),
+  M(REB5,1), M(DO5,7),
+
+  // 12
+  M(REB5,4), R(2),
+  M(DO5,1), M(REB5,1),
+  M(FA5,1), M(MIB5,2), M(DO5,1),
+  M(REB5,1), M(DO5,2), M(SIB4,1),
+
+  // 13 — Fa minör akorları
+  R(2),
+  A(DO4,FA4,LAB4,2),
+  A(DO4,FA4,LAB4,2),
+  M(SOL4,2),
+  M(SOL4,3), M(FA4,3), M(SIB4,2),
+
+  // 14
+  A(REB4,FA4,SIB4,2),
+  M(LAB4,2), M(SOL4,3),
+  A(LAB3,DO4,FA4,9),
+
+  // 15
+  R(2),
+  A(DO4,FA4,LAB4,2),
+  A(DO4,FA4,LAB4,2),
+  M(SOL4,2),
+  M(SOL4,3), M(FA4,3), M(SIB4,2),
+
+  // 16
+  A(REB4,FA4,SIB4,2),
+  M(LAB4,2), M(SOL4,3),
+  A(LAB3,DO4,FA4,9)
+};
+
+// Alt porte — iki ölçülük bas döngüsü
+const Olay bas[] PROGMEM = {
+  // Birinci ölçü
+  M(FA2,4), R(2),
+  M(SIB2,1), M(DO3,1),
+  M(REB3,1), M(DO3,7),
+
+  // İkinci ölçü
+  M(REB3,4), R(2),
+  M(DO3,1), M(REB3,1),
+  M(FA3,1), M(MIB3,2), M(DO3,1),
+  M(REB3,1), M(DO3,2), M(SIB2,1)
+};
+
+const unsigned int MELODI_SAYISI =
+    sizeof(melodi) / sizeof(melodi[0]);
+
+const unsigned int BAS_SAYISI =
+    sizeof(bas) / sizeof(bas[0]);
+
+// Her çıkış için bağımsız kare dalga zamanlaması
+unsigned long yarimPeriyot[2] = {0};
+unsigned long sonrakiKenar[2] = {0};
+bool seviye[2] = {false};
+
+void sustur(byte ilk, byte son) {
+  for (byte i = ilk; i < son; i++) {
+    yarimPeriyot[i] = 0;
+    seviye[i] = false;
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void sesBaslat(byte kanal, uint16_t frekans) {
+  digitalWrite(PINLER[kanal], LOW);
+  seviye[kanal] = false;
+
+  if (frekans == SUS) {
+    yarimPeriyot[kanal] = 0;
+    return;
+  }
+
+  yarimPeriyot[kanal] = 500000UL / frekans;
+  sonrakiKenar[kanal] = micros() + yarimPeriyot[kanal];
+}
+
+void dalgalariGuncelle() {
+  unsigned long simdi = micros();
+
+  for (byte i = 0; i < 2; i++) {
+    if (yarimPeriyot[i] == 0) {
+      continue;
+    }
+
+    if ((long)(simdi - sonrakiKenar[i]) >= 0) {
+      seviye[i] = !seviye[i];
+      digitalWrite(PINLER[i], seviye[i]);
+
+      sonrakiKenar[i] += yarimPeriyot[i];
+    }
+  }
+}
+
+void sarkiyiCal() {
+  const unsigned long birimUs =
+      60000000UL / BPM / 4;
+
+  unsigned int melodiIndex = 0;
+  unsigned int basIndex = 0;
+
+  byte melodiKalan = 0;
+  byte basKalan = 0;
+
+  unsigned long birimBaslangici = micros();
+
+  while (true) {
+    // Yeni melodi notasını veya akorunu yükle
+    if (melodiKalan == 0) {
+      if (melodiIndex >= MELODI_SAYISI) {
+        break;
+      }
+
+      Olay olay;
+      memcpy_P(
+        &olay,
+        &melodi[melodiIndex],
+        sizeof(Olay)
+      );
+      melodiIndex++;
+
+      sesBaslat(0, olay.ses[2]);
+
+      melodiKalan = olay.sure;
+    }
+
+    // Bas döngüsünden yeni nota yükle
+    if (basKalan == 0) {
+      Olay olay;
+      memcpy_P(
+        &olay,
+        &bas[basIndex],
+        sizeof(Olay)
+      );
+
+      basIndex++;
+      if (basIndex >= BAS_SAYISI) {
+        basIndex = 0;
+      }
+
+      sesBaslat(1, olay.ses[0]);
+
+      basKalan = olay.sure;
+    }
+
+    bool melodiBosluk = false;
+    bool basBosluk = false;
+
+    // Bir onaltılık süre boyunca çıkışları birlikte çalıştır
+    while (micros() - birimBaslangici < birimUs) {
+      dalgalariGuncelle();
+
+      unsigned long gecen = micros() - birimBaslangici;
+
+      // Nota sonunda kısa boşluk:
+      // tekrarlanan notaların ayrı duyulmasını sağlar.
+      if (gecen >= birimUs - 10000UL) {
+        if (melodiKalan == 1 && !melodiBosluk) {
+          sustur(0, 1);
+          melodiBosluk = true;
+        }
+
+        if (basKalan == 1 && !basBosluk) {
+          sustur(1, 2);
+          basBosluk = true;
+        }
+      }
+    }
+
+    birimBaslangici += birimUs;
+    melodiKalan--;
+    basKalan--;
+  }
+
+  sustur(0, 2);
+}
+
+void setup() {
+  for (byte i = 0; i < 2; i++) {
+    pinMode(PINLER[i], OUTPUT);
+    digitalWrite(PINLER[i], LOW);
+  }
+}
+
+void loop() {
+  sarkiyiCal();
+  delay(3000);
+}

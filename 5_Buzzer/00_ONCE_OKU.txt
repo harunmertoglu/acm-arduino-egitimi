@@ -1,0 +1,40 @@
+ARDUINO UNO — 5 PASİF BUZZER
+
+Bu klasörde 10 bağımsız tam kod dosyası vardır.
+Her seferinde tek bir TXT dosyasının tamamını Arduino IDE'ye yapıştırın.
+Açıklamalar kod yorumlarıdır; onları silmeniz gerekmez.
+Kart: Arduino Uno. Port: kendi kartınızın portu. Sonra Yükle'ye basın.
+
+BAĞLANTILAR
+Buzzer 1: + D4, - GND
+Buzzer 2: + D5, - GND
+Buzzer 3: + D6, - GND
+Buzzer 4: + D7, - GND
+Buzzer 5: + D8, - GND
+
+Kartın enerjisini keserek bağlantı yapın. Çıkış pinlerini birbirine bağlamayın.
+Uygun düşük akımlı pasif piezo kullanın; yüksek akımlı parçalar sürücü gerektirir.
+BPM hızdır; ses seviyesi değildir. Şarkılar kısa beklemeden sonra tekrar eder.
+
+DOSYALAR
+01_Zamansizlik.txt — Zamansızlık — Manifest
+02_Hileli.txt — Hileli — Manifest x Ajda Pekkan
+03_Cav_Bella.txt — Çav Bella
+04_Bir_Derdim_Var_Tam.txt — Bir Derdim Var — Mor ve Ötesi (tam bölüm)
+05_Bir_Derdim_Var_Nakarat.txt — Bir Derdim Var — Mor ve Ötesi (yalnızca nakarat)
+06_Tame_Impala_Piyano_Bolumu.txt — Tame Impala — adı belirtilmeyen piyano bölümü
+07_Adi_Belirtilmeyen_Sarki_Iki_Versiyon.txt — Adı belirtilmeyen şarkı — yazılı notasyon, iki versiyon
+08_Adi_Belirtilmeyen_Sarki_Gorsel.txt — Adı belirtilmeyen şarkı — numaralı nota görseli
+09_Ariyo.txt — Arıyo — Manifest
+10_Aya_Benzer.txt — Aya Benzer — Mustafa Sandal
+
+04 tam Bir Derdim Var bölümüdür; 05 yalnızca nakarattır.
+07 içinde VERSIYON = 1 veya 2 seçilir.
+07 ve 08 için konuşmada şarkı adı belirtilmemiştir.
+06: D4–D6 melodi/akorları, D7–D8 bası çalar.
+
+Ritimler yaklaşık uyarlamadır; donanımda dinleme testi yapılmamıştır.
+
+DERLEME KONTROLÜ
+Bu paketteki 30 kodun tamamı Arduino Uno (arduino:avr:uno) için derlendi.
+Bu sonuç sesin ve melodinin donanımda doğrulandığı anlamına gelmez.

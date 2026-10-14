@@ -1,0 +1,22 @@
+ARDUINO ŞARKI KODLARI
+
+Bağladığınız buzzer sayısına göre klasör seçin:
+  1_Buzzer: D7
+  2_Buzzer: D7 ve D8
+  5_Buzzer: D4, D5, D6, D7 ve D8
+
+Her klasörde 10 tam kod ve kullanım rehberi bulunur.
+Seçtiğiniz klasörde önce 00_ONCE_OKU.txt dosyasını okuyun.
+Her şarkı TXT dosyasının tamamını Arduino IDE'ye yapıştırabilirsiniz.
+Kart: Arduino Uno. Buzzer tipi: pasif. Eksi uçlar GND'ye gider.
+
+Tame Impala dosyasında tek buzzer ana melodiyi çalar;
+iki buzzer melodi ve bası, beş buzzer melodi/akorlar ve bası çalar.
+Diğer şarkılarda bağlı buzzerlar aynı melodiyi birlikte çalar.
+
+Bu dosyalar konuşmadaki yaklaşık nota uyarlamalarını içerir.
+Donanımda dinleme testi yapılmamıştır.
+
+DERLEME KONTROLÜ
+Bu paketteki 30 kodun tamamı Arduino Uno (arduino:avr:uno) için derlendi.
+Bu sonuç sesin ve melodinin donanımda doğrulandığı anlamına gelmez.
